@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from core.database import supabase
-from routers import agent, admin
+from routers import agent, admin, stream
 
 app = FastAPI(title="Employee Monitor Backend")
 
@@ -15,6 +15,7 @@ app.add_middleware(
 
 app.include_router(agent.router, prefix="/api/agent", tags=["agent"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
+app.include_router(stream.router, prefix="/api", tags=["stream"])
 
 @app.get("/health")
 def health_check():

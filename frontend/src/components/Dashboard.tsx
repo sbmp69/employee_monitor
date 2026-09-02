@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { LogOut, Monitor, Clock } from 'lucide-react'
+import { LogOut, Monitor, Clock, Play } from 'lucide-react'
+import LiveView from './LiveView'
 
 interface Computer {
   id: string
@@ -18,10 +19,11 @@ interface DashboardProps {
 export default function Dashboard({ onLogout }: DashboardProps) {
   const [computers, setComputers] = useState<Computer[]>([])
   const [loading, setLoading] = useState(true)
+  const [viewingDevice, setViewingDevice] = useState<Computer | null>(null)
 
   useEffect(() => {
     fetchComputers()
-    const interval = setInterval(fetchComputers, 10000) // Poll every 10s
+    const interval = setInterval(fetchComputers, 10000)
     return () => clearInterval(interval)
   }, [])
 
@@ -56,7 +58,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
     const lastSeenDate = new Date(lastSeen)
     const now = new Date()
     const diffSeconds = (now.getTime() - lastSeenDate.getTime()) / 1000
-    return diffSeconds < 90 // Consider offline if no heartbeat in 90s
+    return diffSeconds < 90
   }
 
   return (
@@ -93,7 +95,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Seen</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent Version</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -118,8 +120,19 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                           <Clock size={14} />
                           {new Date(pc.last_seen).toLocaleString()}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {pc.agent_version || 'N/A'}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button
+                            onClick={() => setViewingDevice(pc)}
+                            disabled={!online}
+                            className={`flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors ${
+                              online 
+                                ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' 
+                                : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                            }`}
+                          >
+                            <Play size={14} />
+                            View Screen
+                          </button>
                         </td>
                       </tr>
                     )
@@ -137,6 +150,14 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           )}
         </div>
       </main>
+
+      {viewingDevice && (
+        <LiveView
+          deviceId={viewingDevice.id}
+          deviceName={viewingDevice.device_name}
+          onClose={() => setViewingDevice(null)}
+        />
+      )}
     </div>
   )
 }
