@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 from datetime import datetime
 
 class AgentRegisterRequest(BaseModel):
@@ -22,6 +22,10 @@ class ComputerResponse(BaseModel):
     blocked_websites: Optional[List[str]] = []
     policy_status: Optional[str] = None
 
+class ComputerEditRequest(BaseModel):
+    device_name: str
+    employee_name: Optional[str] = None
+
 class RecordingResponse(BaseModel):
     id: str
     device_id: str
@@ -37,3 +41,11 @@ class PolicyUpdateRequest(BaseModel):
 class AgentPolicyStatusRequest(BaseModel):
     device_id: str
     status: str
+
+class AuditLogResponse(BaseModel):
+    id: str
+    action: str
+    admin_email: Optional[str] = None
+    target_device_id: Optional[str] = None
+    details: Optional[Dict[str, Any]] = None
+    created_at: datetime

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { LogOut, Monitor, Clock, Play, Video, Square, History, ShieldAlert } from 'lucide-react'
+import { LogOut, Monitor, Clock, Play, Video, Square, History, ShieldAlert, Edit2, Trash2, Activity } from 'lucide-react'
 import LiveView from './LiveView'
 import RecordingsList from './RecordingsList'
 import PolicyModal from './PolicyModal'
+import EditDeviceModal from './EditDeviceModal'
+import AuditLogs from './AuditLogs'
 
 interface Computer {
   id: string
@@ -26,6 +28,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [viewingDevice, setViewingDevice] = useState<Computer | null>(null)
   const [historyDevice, setHistoryDevice] = useState<Computer | null>(null)
   const [policyDevice, setPolicyDevice] = useState<Computer | null>(null)
+  const [editDevice, setEditDevice] = useState<Computer | null>(null)
+  const [showAuditLogs, setShowAuditLogs] = useState(false)
   const [recordingDevices, setRecordingDevices] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -58,6 +62,28 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     onLogout()
+  }
+
+  const handleRevoke = async (deviceId: string) => {
+    if (!window.confirm("Are you sure you want to revoke this device? It will be deleted from the database.")) return
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const response = await fetch(`http://localhost:8000/api/admin/computers/${deviceId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+      if (response.ok) {
+        fetchComputers()
+      } else {
+        alert("Failed to revoke device")
+      }
+    } catch (err) {
+      alert("Error revoking device")
+    }
   }
 
   const toggleRecording = async (deviceId: string, isRecording: boolean) => {
@@ -107,13 +133,22 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             <Monitor className="text-blue-600" />
             Employee Monitor Dashboard
           </h1>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-          >
-            <LogOut size={16} />
-            Logout
-          </button>
+          <div className="flex gap-4 items-center">
+            <button
+              onClick={() => setShowAuditLogs(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+            >
+              <Activity size={16} />
+              Audit Logs
+            </button>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+            >
+              <LogOut size={16} />
+              Logout
+            </button>
+          </div>
         </div>
       </header>
 
@@ -207,6 +242,26 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                               <History size={14} />
                               History
                             </button>
+
+                            <div className="h-4 w-px bg-gray-300 mx-1"></div>
+
+                            <button
+                              onClick={() => setEditDevice(pc)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors bg-orange-50 text-orange-700 hover:bg-orange-100"
+                              title="Edit Device"
+                            >
+                              <Edit2 size={14} />
+                              Edit
+                            </button>
+                            
+                            <button
+                              onClick={() => handleRevoke(pc.id)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors bg-red-50 text-red-700 hover:bg-red-100"
+                              title="Revoke Device"
+                            >
+                              <Trash2 size={14} />
+                              Revoke
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -254,6 +309,21 @@ export default function Dashboard({ onLogout }: DashboardProps) {
             fetchComputers()
           }}
         />
+      )}
+
+      {editDevice && (
+        <EditDeviceModal
+          computer={editDevice}
+          onClose={() => setEditDevice(null)}
+          onSaved={() => {
+            setEditDevice(null)
+            fetchComputers()
+          }}
+        />
+      )}
+
+      {showAuditLogs && (
+        <AuditLogs onClose={() => setShowAuditLogs(false)} />
       )}
     </div>
   )
