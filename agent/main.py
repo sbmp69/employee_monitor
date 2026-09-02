@@ -7,6 +7,8 @@ import threading
 import json
 import asyncio
 import websockets
+import subprocess
+import datetime
 from mss import mss
 from PIL import Image
 import io
@@ -20,6 +22,9 @@ AGENT_VERSION = "1.0.0"
 DEVICE_ID_FILE = ".device_id"
 
 is_streaming = False
+recording_process = None
+recording_start_time = None
+temp_recording_file = "temp_record.mp4"
 
 def get_device_name():
     return socket.gethostname()
@@ -80,11 +85,9 @@ async def stream_loop(device_id):
                     while is_streaming:
                         start_time = time.time()
                         
-                        # Capture and compress
                         sct_img = sct.grab(monitor)
                         img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
                         
-                        # Resize slightly for MVP bandwidth saving
                         img.thumbnail((1280, 720), Image.Resampling.LANCZOS)
                         
                         buffer = io.BytesIO()
@@ -93,7 +96,6 @@ async def stream_loop(device_id):
                         
                         await ws.send(frame_data)
                         
-                        # Target ~10 FPS
                         elapsed = time.time() - start_time
                         sleep_time = max(0, 0.1 - elapsed)
                         await asyncio.sleep(sleep_time)
@@ -102,8 +104,26 @@ async def stream_loop(device_id):
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Stream error: {e}")
             await asyncio.sleep(2)
 
+def upload_recording_task(device_id, start_time, end_time, filepath):
+    try:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Uploading recording...")
+        with open(filepath, 'rb') as f:
+            files = {'file': (os.path.basename(filepath), f, 'video/mp4')}
+            data = {
+                'device_id': device_id,
+                'start_time': start_time.isoformat(),
+                'end_time': end_time.isoformat()
+            }
+            res = requests.post(f"{BACKEND_URL}/api/agent/upload_recording", files=files, data=data)
+            res.raise_for_status()
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Recording uploaded successfully.")
+        # Clean up local temp file
+        os.remove(filepath)
+    except Exception as e:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Failed to upload recording: {e}")
+
 async def control_loop(device_id):
-    global is_streaming
+    global is_streaming, recording_process, recording_start_time
     control_url = f"{WS_URL}/api/ws/agent/{device_id}/control"
     
     while True:
@@ -121,6 +141,35 @@ async def control_loop(device_id):
                     elif command == "STOP_STREAM":
                         print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Received STOP_STREAM")
                         is_streaming = False
+                    elif command == "START_RECORDING":
+                        if recording_process is None:
+                            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Starting FFmpeg recording...")
+                            recording_start_time = datetime.datetime.now(datetime.timezone.utc)
+                            # Remove old temp file if it exists
+                            if os.path.exists(temp_recording_file):
+                                os.remove(temp_recording_file)
+                            # Spawn FFmpeg
+                            cmd = ["ffmpeg", "-f", "gdigrab", "-framerate", "15", "-i", "desktop", 
+                                   "-c:v", "libx264", "-preset", "ultrafast", "-y", temp_recording_file]
+                            # Use creationflags=subprocess.CREATE_NO_WINDOW to hide console on Windows in production
+                            recording_process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    elif command == "STOP_RECORDING":
+                        if recording_process is not None:
+                            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Stopping FFmpeg recording...")
+                            # Send 'q' to gracefully stop ffmpeg
+                            try:
+                                recording_process.stdin.write(b'q')
+                                recording_process.stdin.flush()
+                                recording_process.communicate(timeout=10)
+                            except:
+                                recording_process.terminate()
+                            
+                            end_time = datetime.datetime.now(datetime.timezone.utc)
+                            recording_process = None
+                            
+                            # Upload in background thread
+                            threading.Thread(target=upload_recording_task, args=(device_id, recording_start_time, end_time, temp_recording_file), daemon=True).start()
+
         except Exception as e:
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Control connection error: {e}")
             await asyncio.sleep(5)
@@ -141,8 +190,6 @@ if __name__ == "__main__":
         if not device_id:
             time.sleep(5)
             
-    # Start HTTP heartbeat in background thread
     threading.Thread(target=heartbeat_loop, args=(device_id,), daemon=True).start()
     
-    # Start WebSocket async loops
     asyncio.run(main_async(device_id))

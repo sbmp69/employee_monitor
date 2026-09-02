@@ -19,3 +19,12 @@ class ComputerResponse(BaseModel):
     status: str
     last_seen: datetime
     agent_version: Optional[str] = None
+
+class RecordingResponse(BaseModel):
+    id: str
+    device_id: str
+    filename: str
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    file_size: Optional[int] = None
+    created_at: datetime

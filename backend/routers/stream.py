@@ -62,6 +62,12 @@ class ConnectionManager:
                 except:
                     pass
 
+    async def send_command_to_agent(self, device_id: str, command: str):
+        if device_id in self.active_agents:
+            await self.active_agents[device_id].send_text(json.dumps({"command": command}))
+            return True
+        return False
+
 manager = ConnectionManager()
 
 @router.websocket("/ws/agent/{device_id}/control")

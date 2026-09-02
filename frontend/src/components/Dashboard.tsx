@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { LogOut, Monitor, Clock, Play } from 'lucide-react'
+import { LogOut, Monitor, Clock, Play, Video, Square, History } from 'lucide-react'
 import LiveView from './LiveView'
+import RecordingsList from './RecordingsList'
 
 interface Computer {
   id: string
@@ -20,6 +21,8 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [computers, setComputers] = useState<Computer[]>([])
   const [loading, setLoading] = useState(true)
   const [viewingDevice, setViewingDevice] = useState<Computer | null>(null)
+  const [historyDevice, setHistoryDevice] = useState<Computer | null>(null)
+  const [recordingDevices, setRecordingDevices] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetchComputers()
@@ -51,6 +54,37 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     onLogout()
+  }
+
+  const toggleRecording = async (deviceId: string, isRecording: boolean) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const endpoint = isRecording ? 'stop' : 'start'
+      const response = await fetch(`http://localhost:8000/api/admin/recordings/${endpoint}/${deviceId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      })
+      
+      if (response.ok) {
+        setRecordingDevices(prev => {
+          const next = new Set(prev)
+          if (isRecording) {
+            next.delete(deviceId)
+          } else {
+            next.add(deviceId)
+          }
+          return next
+        })
+      } else {
+        alert('Failed to send recording command.')
+      }
+    } catch (err) {
+      alert('Error communicating with backend.')
+    }
   }
 
   const isOnline = (lastSeen: string, status: string) => {
@@ -101,6 +135,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {computers.map((pc) => {
                     const online = isOnline(pc.last_seen, pc.status)
+                    const isRecording = recordingDevices.has(pc.id)
                     return (
                       <tr key={pc.id}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
@@ -121,18 +156,45 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                           {new Date(pc.last_seen).toLocaleString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => setViewingDevice(pc)}
-                            disabled={!online}
-                            className={`flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors ${
-                              online 
-                                ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' 
-                                : 'bg-gray-50 text-gray-400 cursor-not-allowed'
-                            }`}
-                          >
-                            <Play size={14} />
-                            View Screen
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setViewingDevice(pc)}
+                              disabled={!online}
+                              className={`flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors ${
+                                online 
+                                  ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' 
+                                  : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                              }`}
+                              title="Live View"
+                            >
+                              <Play size={14} />
+                              Live
+                            </button>
+                            
+                            <button
+                              onClick={() => toggleRecording(pc.id, isRecording)}
+                              disabled={!online}
+                              className={`flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors ${
+                                !online ? 'bg-gray-50 text-gray-400 cursor-not-allowed' :
+                                isRecording 
+                                  ? 'bg-red-50 text-red-700 hover:bg-red-100 animate-pulse'
+                                  : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                              }`}
+                              title={isRecording ? "Stop Recording" : "Start Recording"}
+                            >
+                              {isRecording ? <Square size={14} /> : <Video size={14} />}
+                              {isRecording ? 'Stop Rec' : 'Record'}
+                            </button>
+
+                            <button
+                              onClick={() => setHistoryDevice(pc)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors bg-gray-100 text-gray-700 hover:bg-gray-200"
+                              title="View History"
+                            >
+                              <History size={14} />
+                              History
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -156,6 +218,14 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           deviceId={viewingDevice.id}
           deviceName={viewingDevice.device_name}
           onClose={() => setViewingDevice(null)}
+        />
+      )}
+
+      {historyDevice && (
+        <RecordingsList
+          deviceId={historyDevice.id}
+          deviceName={historyDevice.device_name}
+          onClose={() => setHistoryDevice(null)}
         />
       )}
     </div>
