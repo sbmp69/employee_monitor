@@ -65,3 +65,26 @@ def play_recording(recording_id: str, token: str = None):
         return FileResponse(filepath, media_type="video/mp4")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/computers/{device_id}/policy")
+async def update_policy(device_id: str, req: __import__('schemas').PolicyUpdateRequest, admin = Depends(get_current_admin)):
+    try:
+        # Update DB
+        res = supabase.table("computers").update({
+            "blocked_websites": req.websites,
+            "policy_status": "Pushing..."
+        }).eq("id", device_id).execute()
+        
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Device not found")
+            
+        # Notify agent
+        success = await manager.send_command_to_agent(device_id, "UPDATE_POLICY", websites=req.websites)
+        if not success:
+            # If agent is offline, it's fine, we update DB anyway. Agent should theoretically fetch policy on boot, 
+            # but for MVP we rely on the push. We can update status to Pending.
+            supabase.table("computers").update({"policy_status": "Pending (Offline)"}).eq("id", device_id).execute()
+            
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

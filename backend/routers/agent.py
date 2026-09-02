@@ -71,3 +71,13 @@ async def upload_recording(
         return {"status": "ok", "filename": filename}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/policy_status")
+def update_policy_status(req: __import__('schemas').AgentPolicyStatusRequest):
+    try:
+        res = supabase.table("computers").update({
+            "policy_status": req.status
+        }).eq("id", req.device_id).execute()
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

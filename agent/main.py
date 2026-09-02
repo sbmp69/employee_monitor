@@ -167,12 +167,72 @@ async def control_loop(device_id):
                             end_time = datetime.datetime.now(datetime.timezone.utc)
                             recording_process = None
                             
-                            # Upload in background thread
                             threading.Thread(target=upload_recording_task, args=(device_id, recording_start_time, end_time, temp_recording_file), daemon=True).start()
+                    elif command == "UPDATE_POLICY":
+                        websites = data.get("websites", [])
+                        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Received UPDATE_POLICY: {websites}")
+                        threading.Thread(target=apply_policy, args=(device_id, websites), daemon=True).start()
 
         except Exception as e:
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Control connection error: {e}")
             await asyncio.sleep(5)
+
+def apply_policy(device_id, websites):
+    HOSTS_FILE = r"C:\Windows\System32\drivers\etc\hosts"
+    BLOCK_START = "# --- EMPLOYEE MONITOR BLOCK ---"
+    BLOCK_END = "# --- END EMPLOYEE MONITOR BLOCK ---"
+    
+    try:
+        if not os.path.exists(HOSTS_FILE):
+            report_policy_status(device_id, "Failed: Hosts file not found")
+            return
+            
+        with open(HOSTS_FILE, 'r') as f:
+            lines = f.readlines()
+            
+        # Remove old block
+        new_lines = []
+        in_block = False
+        for line in lines:
+            if line.strip() == BLOCK_START:
+                in_block = True
+                continue
+            if line.strip() == BLOCK_END:
+                in_block = False
+                continue
+            if not in_block:
+                new_lines.append(line)
+                
+        # Append new block
+        if websites:
+            new_lines.append(f"\n{BLOCK_START}\n")
+            for site in websites:
+                site = site.strip()
+                if site:
+                    new_lines.append(f"127.0.0.1 {site}\n")
+                    new_lines.append(f"127.0.0.1 www.{site}\n")
+            new_lines.append(f"{BLOCK_END}\n")
+            
+        # Requires Admin privileges!
+        with open(HOSTS_FILE, 'w') as f:
+            f.writelines(new_lines)
+            
+        report_policy_status(device_id, "Applied successfully")
+    except PermissionError:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Permission denied editing hosts file. Run as Admin.")
+        report_policy_status(device_id, "Failed: Access Denied (Not Admin)")
+    except Exception as e:
+        report_policy_status(device_id, f"Failed: {str(e)}")
+
+def report_policy_status(device_id, status):
+    try:
+        requests.post(f"{BACKEND_URL}/api/agent/policy_status", json={
+            "device_id": device_id,
+            "status": status
+        })
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Policy status reported: {status}")
+    except Exception as e:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Failed to report policy status: {e}")
 
 async def main_async(device_id):
     await asyncio.gather(

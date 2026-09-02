@@ -62,9 +62,11 @@ class ConnectionManager:
                 except:
                     pass
 
-    async def send_command_to_agent(self, device_id: str, command: str):
+    async def send_command_to_agent(self, device_id: str, command: str, **kwargs):
         if device_id in self.active_agents:
-            await self.active_agents[device_id].send_text(json.dumps({"command": command}))
+            payload = {"command": command}
+            payload.update(kwargs)
+            await self.active_agents[device_id].send_text(json.dumps(payload))
             return True
         return False
 

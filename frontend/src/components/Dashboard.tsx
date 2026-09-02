@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { LogOut, Monitor, Clock, Play, Video, Square, History } from 'lucide-react'
+import { LogOut, Monitor, Clock, Play, Video, Square, History, ShieldAlert } from 'lucide-react'
 import LiveView from './LiveView'
 import RecordingsList from './RecordingsList'
+import PolicyModal from './PolicyModal'
 
 interface Computer {
   id: string
@@ -11,6 +12,8 @@ interface Computer {
   status: string
   last_seen: string
   agent_version: string | null
+  blocked_websites: string[]
+  policy_status: string | null
 }
 
 interface DashboardProps {
@@ -22,6 +25,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
   const [loading, setLoading] = useState(true)
   const [viewingDevice, setViewingDevice] = useState<Computer | null>(null)
   const [historyDevice, setHistoryDevice] = useState<Computer | null>(null)
+  const [policyDevice, setPolicyDevice] = useState<Computer | null>(null)
   const [recordingDevices, setRecordingDevices] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -183,7 +187,16 @@ export default function Dashboard({ onLogout }: DashboardProps) {
                               title={isRecording ? "Stop Recording" : "Start Recording"}
                             >
                               {isRecording ? <Square size={14} /> : <Video size={14} />}
-                              {isRecording ? 'Stop Rec' : 'Record'}
+                              Rec
+                            </button>
+
+                            <button
+                              onClick={() => setPolicyDevice(pc)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-md transition-colors bg-purple-50 text-purple-700 hover:bg-purple-100"
+                              title="Set Policy"
+                            >
+                              <ShieldAlert size={14} />
+                              Policy
                             </button>
 
                             <button
@@ -226,6 +239,20 @@ export default function Dashboard({ onLogout }: DashboardProps) {
           deviceId={historyDevice.id}
           deviceName={historyDevice.device_name}
           onClose={() => setHistoryDevice(null)}
+        />
+      )}
+
+      {policyDevice && (
+        <PolicyModal
+          deviceId={policyDevice.id}
+          deviceName={policyDevice.device_name}
+          initialWebsites={policyDevice.blocked_websites || []}
+          policyStatus={policyDevice.policy_status}
+          onClose={() => setPolicyDevice(null)}
+          onSaved={() => {
+            setPolicyDevice(null)
+            fetchComputers()
+          }}
         />
       )}
     </div>

@@ -23,6 +23,12 @@ CREATE TABLE IF NOT EXISTS public.recordings (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- PHASE 5: Website Blocking (Updates to Computers Table)
+-- Run these ALTER statements if the table already exists
+ALTER TABLE public.computers ADD COLUMN IF NOT EXISTS blocked_websites TEXT[] DEFAULT '{}';
+ALTER TABLE public.computers ADD COLUMN IF NOT EXISTS policy_status TEXT DEFAULT 'Unconfigured';
+
+
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.computers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.recordings ENABLE ROW LEVEL SECURITY;
