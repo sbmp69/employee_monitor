@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from core.database import supabase
+from routers import agent, admin
 
 app = FastAPI(title="Employee Monitor Backend")
 
@@ -12,13 +13,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(agent.router, prefix="/api/agent", tags=["agent"])
+app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
+
 @app.get("/health")
 def health_check():
-    # Attempt to query supabase to verify connection (e.g. auth health check or dummy query)
     db_status = "ok"
     try:
-        # A simple check (if a 'computers' table existed we could query it, 
-        # but for now we just verify the client exists)
         if supabase:
             pass
     except Exception as e:
