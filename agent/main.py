@@ -82,7 +82,11 @@ async def stream_loop(device_id):
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Stream connection established.")
                 with mss() as sct:
                     monitor = sct.monitors[1] # Primary monitor
-                    while is_streaming:
+                    while True:
+                        if not is_streaming:
+                            await asyncio.sleep(0.5)
+                            continue
+                            
                         start_time = time.time()
                         
                         sct_img = sct.grab(monitor)
