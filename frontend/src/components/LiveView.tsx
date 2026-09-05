@@ -5,10 +5,11 @@ import { supabase } from '../lib/supabase'
 interface LiveViewProps {
   deviceId: string
   deviceName: string
+  employeeName?: string
   onClose: () => void
 }
 
-export default function LiveView({ deviceId, deviceName, onClose }: LiveViewProps) {
+export default function LiveView({ deviceId, deviceName, employeeName, onClose }: LiveViewProps) {
   const [status, setStatus] = useState<'connecting' | 'connected' | 'error'>('connecting')
   const imgRef = useRef<HTMLImageElement>(null)
   const wsRef = useRef<WebSocket | null>(null)
@@ -61,12 +62,14 @@ export default function LiveView({ deviceId, deviceName, onClose }: LiveViewProp
     }
   }, [deviceId])
 
+  const displayTitle = employeeName ? `${employeeName}'s Screen (${deviceName})` : `${deviceName} - Live Screen`
+
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex flex-col">
       {/* Header */}
       <div className="bg-gray-900 text-white p-4 flex justify-between items-center">
         <div>
-          <h2 className="text-lg font-semibold">{deviceName} - Live Screen</h2>
+          <h2 className="text-lg font-semibold">{displayTitle}</h2>
           <div className="flex items-center gap-2 text-sm mt-1">
             {status === 'connecting' && <span className="text-yellow-400">Connecting...</span>}
             {status === 'connected' && (

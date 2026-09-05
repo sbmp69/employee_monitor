@@ -285,6 +285,7 @@ export default function Dashboard({ onLogout }: DashboardProps) {
         <LiveView
           deviceId={viewingDevice.id}
           deviceName={viewingDevice.device_name}
+          employeeName={viewingDevice.employee_name}
           onClose={() => setViewingDevice(null)}
         />
       )}
